@@ -63,9 +63,8 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-	int tickets;		// Number of tickets for each program
 	int nstep;		// Number of the current step
-	int setp;		// Number of the step size		
+	int step;		// Number of the step size		
 };
 
 void Initialize(unsigned int);

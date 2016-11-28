@@ -37,7 +37,7 @@ pinit(void)
 // Otherwise return 0.
 // Must hold ptable.lock.
 static struct proc*
-allocproc(void)
+allocproc(int tickets)
 {
   struct proc *p;
   char *sp;
@@ -75,6 +75,21 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+	if(!tickets){
+		p->step = 50000 / 500;
+		p->nstep = 0;
+	}else if(tickets <= 50){
+		p->step = 50000 / 50;
+		p->nstep = 0;
+	}else if(tickets >= 1000){
+		p->step = 50000 / 1000;
+		p->nstep = 0;	
+	}else{
+		p->step = 50000 / tickets;
+		p->nstep = 0;
+	}
+
+
   return p;
 }
 
@@ -88,7 +103,7 @@ userinit(void)
 
   acquire(&ptable.lock);
 
-  p = allocproc();
+  p = allocproc(500);
 
   // release the lock in case namei() sleeps.
   // the lock isn't needed because no other
@@ -108,7 +123,6 @@ userinit(void)
   p->tf->eflags = FL_IF;
   p->tf->esp = PGSIZE;
   p->tf->eip = 0;  // beginning of initcode.S
-  p->tickets = 5;
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
@@ -156,7 +170,7 @@ int fork(int tickets)
   acquire(&ptable.lock);
 
   // Allocate process.
-  if((np = allocproc()) == 0){
+  if((np = allocproc(tickets)) == 0){
     release(&ptable.lock);
     return -1;
   }
@@ -175,15 +189,6 @@ int fork(int tickets)
   np->parent = proc;
   *np->tf = *proc->tf;
 
-	if(!tickets)
-		np->tickets = 5;
-	else if(tickets <= 1)
-		np->tickets = 1;
-	else if(tickets >= 10)
-		np->tickets = 10;	
-	else
-		np->tickets = tickets;
-		
 
 
   // Clear %eax so that fork returns 0 in the child.
@@ -313,8 +318,8 @@ wait(void)
 void
 scheduler(void)
 {
-  struct proc *p;
-  int sum = 0, lot = 0, maxTicket = 0;
+	struct proc *p;
+ 	struct proc *MinP;
 
   for(;;){
 	// Enable interrupts on this processor.   	
@@ -322,30 +327,33 @@ scheduler(void)
 	
     	// Loop over process table looking for process to run.y
     	acquire(&ptable.lock);
-	if(maxTicket > 0){
-    		for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-			sum += p->tickets;      		
-			if(p->state == RUNNABLE){
-				lot -= p->tickets;	
-				if(lot < 0)
-					break;
-			}
-		}
-	
+	MinP = ptable.proc;
+	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){		
+		if(p->state > EMBRYO && p->state < ZOMBIE){
+			if(p->nstep == 0){
+				MinP = p;
+				break;
+			}		
 		
-		// Switch to chosen process.  It is the process's job
-		// to release ptable.lock and then reacquire it
-		// before jumping back to us.
-		proc = p;
-		switchuvm(p);
-		p->state = RUNNING;
-		swtch(&cpu->scheduler, p->context);
-		switchkvm();
-	      	// Process is done running for now.
-	      	// It should have changed its p->state before coming back.
-	    	proc = 0;
-    	
+			if(p->nstep < MinP->nstep)
+				MinP = p;
+      		}	
 	}
+
+	
+	// Switch to chosen process.  It is the process's job
+	// to release ptable.lock and then reacquire it
+	// before jumping back to us.
+	proc = MinP;
+	switchuvm(p);
+	p->state = RUNNING;
+	swtch(&cpu->scheduler, p->context);
+	switchkvm();
+      	// Process is done running for now.
+      	// It should have changed its p->state before coming back.
+ 	proc = 0;
+    	
+	
 
     	release(&ptable.lock);
 
