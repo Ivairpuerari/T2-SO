@@ -307,7 +307,7 @@ struct proc *p;
   }
 }else{
 	
-	
+	int min;
 	struct proc *p;
 	struct proc *minP;
 	for(;;){
@@ -315,34 +315,34 @@ struct proc *p;
     		sti();
 
 		acquire(&ptable.lock);
-		minP = ptable.proc;
+		minP = 0;
+		min = 5000000; // processo com uma passada maior que 5000000 nao sera mais executada 
 
 		for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-			if(p->state == RUNNABLE && p->step < minP->step)
-				minP = p;	
+			if(p->state == RUNNABLE && p->step < min){
+				min = p->step;
+				minP = p;
+			}
 		}
 		
 		// Switch to chosen process.  It is the process's job
 		// to release ptable.lock and then reacquire it
 		// before jumping back to us.
-
-		proc = minP;
 		
-		if(proc->step < 0)
-			proc->step = proc->sizeStep;
-		else
+		if(minP){
+			proc = minP;
 			proc->step += proc->sizeStep;
-
-		proc->state = RUNNING;
-		switchuvm(proc);
-		
-		swtch(&cpu->scheduler, proc->context);
-		switchkvm();
 	
-		// Process is done running for now.
-		// It should have changed its p->state before coming back.
-		proc = 0;
-    	
+			proc->state = RUNNING;
+			switchuvm(proc);
+				
+			swtch(&cpu->scheduler, proc->context);
+			switchkvm();
+		
+			// Process is done running for now.
+			// It should have changed its p->state before coming back.
+			proc = 0;
+    		}
 		release(&ptable.lock);
 
 	}
