@@ -4,7 +4,6 @@ struct file;
 struct inode;
 struct pipe;
 struct proc;
-struct rtcdate;
 struct spinlock;
 struct stat;
 struct superblock;
@@ -39,7 +38,7 @@ int             dirlink(struct inode*, char*, uint);
 struct inode*   dirlookup(struct inode*, char*, uint*);
 struct inode*   ialloc(uint, short);
 struct inode*   idup(struct inode*);
-void            iinit(int dev);
+void            iinit(void);
 void            ilock(struct inode*);
 void            iput(struct inode*);
 void            iunlock(struct inode*);
@@ -72,7 +71,6 @@ void            kinit2(void*, void*);
 void            kbdintr(void);
 
 // lapic.c
-void            cmostime(struct rtcdate *r);
 int             cpunum(void);
 extern volatile uint*    lapic;
 void            lapiceoi(void);
@@ -81,14 +79,16 @@ void            lapicstartap(uchar, uint);
 void            microdelay(int);
 
 // log.c
-void            initlog(int dev);
+void            initlog(void);
 void            log_write(struct buf*);
-void            begin_op();
-void            end_op();
+void            begin_trans();
+void            commit_trans();
 
 // mp.c
 extern int      ismp;
+int             mpbcpu(void);
 void            mpinit(void);
+void            mpstartthem(void);
 
 // picirq.c
 void            picenable(int);
@@ -102,6 +102,7 @@ int             pipewrite(struct pipe*, char*, int);
 
 //PAGEBREAK: 16
 // proc.c
+struct proc*    copyproc(struct proc*);
 void            exit(void);
 int             fork(int);
 int             growproc(int);
@@ -162,6 +163,7 @@ void            uartputc(int);
 // vm.c
 void            seginit(void);
 void            kvmalloc(void);
+void            vmenable(void);
 pde_t*          setupkvm(void);
 char*           uva2ka(pde_t*, char*);
 int             allocuvm(pde_t*, uint, uint);
